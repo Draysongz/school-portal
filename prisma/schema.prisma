@@ -1,0 +1,301 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  TEACHER
+  STUDENT
+  PARENT
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  EXCUSED
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  REFUNDED
+}
+
+model School {
+  id            String   @id @default(cuid())
+  name          String
+  subdomain     String   @unique
+  logoUrl       String?
+  primaryColor  String   @default("#000000")
+  secondaryColor String  @default("#ffffff")
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  profiles      Profile[]
+  classes       Class[]
+  subjects      Subject[]
+  announcements Announcement[]
+  payments      Payment[]
+  settings      SchoolSettings?
+  attendance    Attendance[]
+  exams         Exam[]
+  notifications Notification[]
+  aiInteractions AIInteraction[]
+  leaderboard   Leaderboard?
+  csvLogs       CSVUploadLog[]
+}
+
+model SchoolSettings {
+  id          String @id @default(cuid())
+  schoolId    String @unique
+  school      School @relation(fields: [schoolId], references: [id])
+  aiLimit     Int    @default(1000)
+  features    Json?
+}
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  passwordHash  String
+  role          Role
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  profiles      Profile[]
+}
+
+model Profile {
+  id        String   @id @default(cuid())
+  userId    String
+  schoolId  String
+  user      User     @relation(fields: [userId], references: [id])
+  school    School   @relation(fields: [schoolId], references: [id])
+  firstName String
+  lastName  String
+  avatarUrl String?
+
+  student   Student?
+  teacher   Teacher?
+  parent    Parent?
+
+  @@unique([userId, schoolId])
+}
+
+model Teacher {
+  id        String   @id @default(cuid())
+  profileId String   @unique
+  profile   Profile  @relation(fields: [profileId], references: [id])
+  classes   ClassSubject[]
+}
+
+model Student {
+  id           String   @id @default(cuid())
+  profileId    String   @unique
+  profile      Profile  @relation(fields: [profileId], references: [id])
+  classId      String?
+  class        Class?   @relation(fields: [classId], references: [id])
+  parents      StudentParent[]
+  attendance   Attendance[]
+  examAttempts StudentExamAttempt[]
+  achievements StudentAchievement[]
+  aiInteractions AIInteraction[]
+}
+
+model Parent {
+  id        String   @id @default(cuid())
+  profileId String   @unique
+  profile   Profile  @relation(fields: [profileId], references: [id])
+  children  StudentParent[]
+}
+
+model StudentParent {
+  studentId String
+  parentId  String
+  student   Student @relation(fields: [studentId], references: [id])
+  parent    Parent  @relation(fields: [parentId], references: [id])
+
+  @@id([studentId, parentId])
+}
+
+model Class {
+  id        String   @id @default(cuid())
+  schoolId  String
+  school    School   @relation(fields: [schoolId], references: [id])
+  name      String
+  students  Student[]
+  subjects  ClassSubject[]
+  timetable Timetable[]
+}
+
+model Subject {
+  id        String   @id @default(cuid())
+  schoolId  String
+  school    School   @relation(fields: [schoolId], references: [id])
+  name      String
+  classes   ClassSubject[]
+  timetable Timetable[]
+}
+
+model ClassSubject {
+  id        String   @id @default(cuid())
+  classId   String
+  subjectId String
+  teacherId String?
+  class     Class   @relation(fields: [classId], references: [id])
+  subject   Subject @relation(fields: [subjectId], references: [id])
+  teacher   Teacher? @relation(fields: [teacherId], references: [id])
+
+  @@unique([classId, subjectId])
+}
+
+model Attendance {
+  id        String           @id @default(cuid())
+  studentId String
+  student   Student          @relation(fields: [studentId], references: [id])
+  date      DateTime
+  status    AttendanceStatus
+  schoolId  String
+  school    School           @relation(fields: [schoolId], references: [id])
+}
+
+model Exam {
+  id          String   @id @default(cuid())
+  schoolId    String
+  school      School   @relation(fields: [schoolId], references: [id])
+  title       String
+  description String?
+  duration    Int // in minutes
+  startTime   DateTime
+  endTime     DateTime
+  questions   Question[]
+  attempts    StudentExamAttempt[]
+}
+
+model Question {
+  id        String   @id @default(cuid())
+  examId    String
+  exam      Exam     @relation(fields: [examId], references: [id])
+  content   String
+  type      String // MCQ, ESSAY
+  options   Json?
+  answer    String?
+  marks     Int
+}
+
+model StudentExamAttempt {
+  id        String   @id @default(cuid())
+  studentId String
+  student   Student  @relation(fields: [studentId], references: [id])
+  examId    String
+  exam      Exam     @relation(fields: [examId], references: [id])
+  startTime DateTime @default(now())
+  endTime   DateTime?
+  score     Float?
+  feedback  String?
+  answers   StudentExamAnswer[]
+}
+
+model StudentExamAnswer {
+  id         String @id @default(cuid())
+  attemptId  String
+  attempt    StudentExamAttempt @relation(fields: [attemptId], references: [id])
+  questionId String
+  answer     String
+  marks      Int?
+}
+
+model Timetable {
+  id        String   @id @default(cuid())
+  classId   String
+  class     Class    @relation(fields: [classId], references: [id])
+  subjectId String
+  subject   Subject  @relation(fields: [subjectId], references: [id])
+  dayOfWeek Int // 0-6
+  startTime String // HH:mm
+  endTime   String // HH:mm
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  schoolId  String
+  school    School   @relation(fields: [schoolId], references: [id])
+  userId    String
+  title     String
+  content   String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model Announcement {
+  id        String   @id @default(cuid())
+  schoolId  String
+  school    School   @relation(fields: [schoolId], references: [id])
+  title     String
+  content   String
+  target    Role?
+  createdAt DateTime @default(now())
+}
+
+model Payment {
+  id        String        @id @default(cuid())
+  schoolId  String
+  school    School        @relation(fields: [schoolId], references: [id])
+  amount    Float
+  status    PaymentStatus
+  provider  String
+  reference String        @unique
+  createdAt DateTime      @default(now())
+}
+
+model AIInteraction {
+  id        String   @id @default(cuid())
+  schoolId  String
+  school    School   @relation(fields: [schoolId], references: [id])
+  studentId String
+  student   Student  @relation(fields: [studentId], references: [id])
+  prompt    String
+  response  String
+  tokens    Int
+  createdAt DateTime @default(now())
+}
+
+model Achievement {
+  id          String @id @default(cuid())
+  name        String
+  description String
+  students    StudentAchievement[]
+}
+
+model StudentAchievement {
+  studentId     String
+  achievementId String
+  student       Student     @relation(fields: [studentId], references: [id])
+  achievement   Achievement @relation(fields: [achievementId], references: [id])
+
+  @@id([studentId, achievementId])
+}
+
+model Leaderboard {
+  id        String @id @default(cuid())
+  schoolId  String @unique
+  school    School @relation(fields: [schoolId], references: [id])
+  data      Json // Aggregated ranking data
+  updatedAt DateTime @updatedAt
+}
+
+model CSVUploadLog {
+  id        String   @id @default(cuid())
+  schoolId  String
+  school    School   @relation(fields: [schoolId], references: [id])
+  fileName  String
+  status    String // PENDING, SUCCESS, FAILED
+  errorLog  String?
+  createdAt DateTime @default(now())
+}
