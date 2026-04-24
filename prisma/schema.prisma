@@ -40,6 +40,7 @@ model School {
   updatedAt     DateTime @updatedAt
 
   profiles      Profile[]
+  academicYears AcademicYear[]
   classes       Class[]
   subjects      Subject[]
   announcements Announcement[]
@@ -51,6 +52,28 @@ model School {
   aiInteractions AIInteraction[]
   leaderboard   Leaderboard?
   csvLogs       CSVUploadLog[]
+}
+
+model AcademicYear {
+  id        String   @id @default(cuid())
+  schoolId  String
+  school    School   @relation(fields: [schoolId], references: [id])
+  name      String   // e.g. 2023/2024
+  startDate DateTime
+  endDate   DateTime
+  isCurrent Boolean  @default(false)
+  terms     Term[]
+  classes   Class[]
+}
+
+model Term {
+  id             String       @id @default(cuid())
+  academicYearId String
+  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id])
+  name           String       // e.g. First Term
+  startDate      DateTime
+  endDate        DateTime
+  isCurrent      Boolean      @default(false)
 }
 
 model SchoolSettings {
@@ -125,13 +148,16 @@ model StudentParent {
 }
 
 model Class {
-  id        String   @id @default(cuid())
-  schoolId  String
-  school    School   @relation(fields: [schoolId], references: [id])
-  name      String
-  students  Student[]
-  subjects  ClassSubject[]
-  timetable Timetable[]
+  id             String       @id @default(cuid())
+  schoolId       String
+  school         School       @relation(fields: [schoolId], references: [id])
+  academicYearId String
+  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id])
+  name           String       // e.g. JSS 1A
+  gradeLevel     Int          // e.g. 1
+  students       Student[]
+  subjects       ClassSubject[]
+  timetable      Timetable[]
 }
 
 model Subject {
