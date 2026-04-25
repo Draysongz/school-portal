@@ -49,7 +49,8 @@ model School {
   attendance    Attendance[]
   exams         Exam[]
   notifications Notification[]
-  aiInteractions AIInteraction[]
+  aiConversations AIConversation[]
+  aiUsageLogs     AIUsageLog[]
   leaderboard   Leaderboard?
   csvLogs       CSVUploadLog[]
 }
@@ -128,7 +129,9 @@ model Student {
   attendance   Attendance[]
   examAttempts StudentExamAttempt[]
   achievements StudentAchievement[]
-  aiInteractions AIInteraction[]
+  aiConversations AIConversation[]
+  aiUsageLogs     AIUsageLog[]
+  aiRecommendations AIRecommendation[]
 }
 
 model Parent {
@@ -167,6 +170,9 @@ model Subject {
   name      String
   classes   ClassSubject[]
   timetable Timetable[]
+  exams     Exam[]
+  questions Question[]
+  aiConversations AIConversation[]
 }
 
 model ClassSubject {
@@ -195,37 +201,58 @@ model Exam {
   id          String   @id @default(cuid())
   schoolId    String
   school      School   @relation(fields: [schoolId], references: [id])
+  subjectId   String
+  subject     Subject  @relation(fields: [subjectId], references: [id])
   title       String
   description String?
-  duration    Int // in minutes
+  duration    Int      // in minutes
   startTime   DateTime
   endTime     DateTime
+  status      String   @default("DRAFT") // DRAFT, PUBLISHED, CLOSED
+  config      Json?    // randomization, anti-cheat, etc.
   questions   Question[]
   attempts    StudentExamAttempt[]
 }
 
 model Question {
-  id        String   @id @default(cuid())
-  examId    String
-  exam      Exam     @relation(fields: [examId], references: [id])
-  content   String
-  type      String // MCQ, ESSAY
-  options   Json?
-  answer    String?
-  marks     Int
+  id          String   @id @default(cuid())
+  schoolId    String
+  subjectId   String
+  subject     Subject  @relation(fields: [subjectId], references: [id])
+  examId      String?
+  exam        Exam?    @relation(fields: [examId], references: [id])
+  content     String
+  type        String   // MCQ, ESSAY, FIB, etc.
+  difficulty  String   @default("MEDIUM")
+  options     Json?    // For MCQs
+  correctAnswer String?
+  marks       Int
+  tags        String?
+  createdAt   DateTime @default(now())
 }
 
 model StudentExamAttempt {
-  id        String   @id @default(cuid())
-  studentId String
-  student   Student  @relation(fields: [studentId], references: [id])
-  examId    String
-  exam      Exam     @relation(fields: [examId], references: [id])
-  startTime DateTime @default(now())
-  endTime   DateTime?
-  score     Float?
-  feedback  String?
-  answers   StudentExamAnswer[]
+  id          String   @id @default(cuid())
+  studentId   String
+  student     Student  @relation(fields: [studentId], references: [id])
+  examId      String
+  exam        Exam     @relation(fields: [examId], references: [id])
+  startTime   DateTime @default(now())
+  endTime     DateTime?
+  status      String   @default("IN_PROGRESS") // IN_PROGRESS, SUBMITTED, GRADED
+  score       Float?
+  feedback    String?
+  answers     StudentExamAnswer[]
+  logs        AntiCheatLog[]
+}
+
+model AntiCheatLog {
+  id          String   @id @default(cuid())
+  attemptId   String
+  attempt     StudentExamAttempt @relation(fields: [attemptId], references: [id])
+  type        String   // TAB_SWITCH, BLUR, etc.
+  timestamp   DateTime @default(now())
+  metadata    Json?
 }
 
 model StudentExamAnswer {
@@ -280,15 +307,48 @@ model Payment {
   createdAt DateTime      @default(now())
 }
 
-model AIInteraction {
+model AIConversation {
   id        String   @id @default(cuid())
   schoolId  String
   school    School   @relation(fields: [schoolId], references: [id])
   studentId String
   student   Student  @relation(fields: [studentId], references: [id])
-  prompt    String
-  response  String
+  subjectId String?
+  subject   Subject? @relation(fields: [subjectId], references: [id])
+  title     String?
+  messages  AIMessage[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AIMessage {
+  id             String         @id @default(cuid())
+  conversationId String
+  conversation   AIConversation @relation(fields: [conversationId], references: [id])
+  role           String         // user, assistant, system
+  content        String
+  tokens         Int?
+  isFlagged      Boolean        @default(false)
+  createdAt      DateTime       @default(now())
+}
+
+model AIUsageLog {
+  id        String   @id @default(cuid())
+  schoolId  String
+  school    School   @relation(fields: [schoolId], references: [id])
+  studentId String
+  student   Student  @relation(fields: [studentId], references: [id])
+  action    String   // chat, quiz_gen, etc.
   tokens    Int
+  createdAt DateTime @default(now())
+}
+
+model AIRecommendation {
+  id        String   @id @default(cuid())
+  studentId String
+  student   Student  @relation(fields: [studentId], references: [id])
+  type      String   // REVISION, STUDY_PLAN
+  content   Json
   createdAt DateTime @default(now())
 }
 
