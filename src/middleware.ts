@@ -1,40 +1,63 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { decrypt } from '@/lib/auth/session';
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const url = request.nextUrl;
   const hostname = request.headers.get('host') || '';
 
-  // Get subdomain (e.g., school1.portal.com -> school1)
+  // 1. Resolve Tenant
   const subdomain = hostname.split('.')[0];
-
-  // Skip middleware for root domain and static files
-  if (
+  const isRootDomain =
     subdomain === 'www' ||
     subdomain === 'localhost:3000' ||
-    url.pathname.startsWith('/_next') ||
-    url.pathname.startsWith('/api/public')
-  ) {
-    return NextResponse.next();
+    !subdomain;
+
+  // 2. Authentication Check
+  const sessionToken = request.cookies.get('session')?.value;
+  const session = sessionToken ? await decrypt(sessionToken) : null;
+
+  // 3. Authorization & Routing
+  const isAuthPage = url.pathname.startsWith('/login') || url.pathname.startsWith('/onboarding');
+  const isSuperAdminPage = url.pathname.startsWith('/super-admin');
+  const isAdminPage = url.pathname.startsWith('/admin');
+
+  // If user is not logged in and trying to access protected pages
+  if (!session && !isAuthPage && !url.pathname.startsWith('/api/public') && !url.pathname.startsWith('/api/auth')) {
+    return NextResponse.redirect(new URL('/login', request.url));
   }
 
-  // Rewrite to the school-specific path
-  // The app will handle the tenant logic based on this rewrite or by header injection
+  // If user is logged in and trying to access login page
+  if (session && isAuthPage) {
+    if (session.role === 'SUPER_ADMIN') {
+      return NextResponse.redirect(new URL('/super-admin', request.url));
+    }
+    return NextResponse.redirect(new URL('/', request.url));
+  }
+
+  // RBAC checks
+  if (isSuperAdminPage && session?.role !== 'SUPER_ADMIN') {
+    return NextResponse.redirect(new URL('/', request.url));
+  }
+
+  if (isAdminPage && !['ADMIN', 'SUPER_ADMIN'].includes(session?.role as string)) {
+    return NextResponse.redirect(new URL('/', request.url));
+  }
+
+  // Inject headers for use in app
   const response = NextResponse.next();
-  response.headers.set('x-school-subdomain', subdomain);
+  if (subdomain && !isRootDomain) {
+    response.headers.set('x-school-subdomain', subdomain);
+  }
+  if (session?.schoolId) {
+    response.headers.set('x-school-id', session.schoolId as string);
+  }
 
   return response;
 }
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - api (API routes)
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     */
-    '/((?!api|_next/static|_next/image|favicon.ico).*)',
+    '/((?!api/public|_next/static|_next/image|favicon.ico).*)',
   ],
 };

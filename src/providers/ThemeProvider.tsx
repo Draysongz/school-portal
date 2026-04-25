@@ -9,10 +9,10 @@ interface ThemeConfig {
 
 const ThemeContext = createContext<ThemeConfig | null>(null);
 
-export function ThemeProvider({ 
-  children, 
-  config 
-}: { 
+export function ThemeProvider({
+  children,
+  config
+}: {
   children: React.ReactNode;
   config: ThemeConfig;
 }) {
