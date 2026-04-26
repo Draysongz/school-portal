@@ -9,7 +9,7 @@ export default async function RootLayout({
   children: React.ReactNode;
 }) {
   const headersList = await headers();
-  const schoolId = await headersList.get('x-school-id');
+  const schoolId = headersList.get('x-school-id');
 
   let theme = { primary: '#000000', secondary: '#ffffff' };
 
